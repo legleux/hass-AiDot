@@ -390,7 +390,7 @@ class DeviceClient(object):
         if self._receive_task and not self._receive_task.done():
             self._receive_task.cancel()
             try:
-                await self.receive_task()
+                await self._receive_task
             except asyncio.CancelledError:
                 pass
         try:
@@ -402,7 +402,7 @@ class DeviceClient(object):
         self._connect_and_login = False
         self.status.online = False
         self.ping_count = 0
-        self._notify_status_update()
+        self.on_status_update()
 
     async def close(self) -> None:
         self._is_close = True

@@ -121,23 +121,22 @@ class AidotLight(CoordinatorEntity[AidotDeviceUpdateCoordinator], LightEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the light on."""
+        from aidot.const import CONF_ON_OFF, CONF_DIMMING, CONF_CCT, CONF_RGBW
+        import ctypes
+
         try:
-            # Always send turn-on first to ensure light is powered
-            await self.coordinator.device_client.async_turn_on()
+            attr = {CONF_ON_OFF: 1}
             if ATTR_BRIGHTNESS in kwargs:
-                await self.coordinator.device_client.async_set_brightness(
-                    kwargs.get(ATTR_BRIGHTNESS, 255)
-                )
+                attr[CONF_DIMMING] = int(kwargs[ATTR_BRIGHTNESS] * 100 / 255)
             if ATTR_COLOR_TEMP_KELVIN in kwargs:
                 self._attr_color_mode = ColorMode.COLOR_TEMP
-                await self.coordinator.device_client.async_set_cct(
-                    kwargs.get(ATTR_COLOR_TEMP_KELVIN)
-                )
+                attr[CONF_CCT] = kwargs[ATTR_COLOR_TEMP_KELVIN]
             if ATTR_RGBW_COLOR in kwargs:
                 self._attr_color_mode = ColorMode.RGBW
-                await self.coordinator.device_client.async_set_rgbw(
-                    kwargs.get(ATTR_RGBW_COLOR)
-                )
+                rgbw = kwargs[ATTR_RGBW_COLOR]
+                val = (rgbw[0] << 24) | (rgbw[1] << 16) | (rgbw[2] << 8) | rgbw[3]
+                attr[CONF_RGBW] = ctypes.c_int32(val).value
+            await self.coordinator.device_client.send_dev_attr(attr)
             self.coordinator.data.on = True
             self._attr_is_on = True
             self.async_write_ha_state()

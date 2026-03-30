@@ -1,10 +1,11 @@
 """Coordinator for Aidot."""
 
+import asyncio
 from datetime import timedelta
 import logging
 
-from aidot.client import AidotClient
-from aidot.const import (
+from .aidot_lib.client import AidotClient
+from .aidot_lib.const import (
     CONF_ACCESS_TOKEN,
     CONF_AES_KEY,
     CONF_DEVICE_LIST,
@@ -12,8 +13,8 @@ from aidot.const import (
     CONF_LOGIN_INFO,
     CONF_TYPE,
 )
-from aidot.device_client import DeviceClient, DeviceStatusData
-from aidot.exceptions import AidotAuthFailed, AidotNotLogin, AidotUserOrPassIncorrect
+from .aidot_lib.device_client import DeviceClient, DeviceStatusData
+from .aidot_lib.exceptions import AidotAuthFailed, AidotNotLogin, AidotUserOrPassIncorrect
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
@@ -53,10 +54,32 @@ class AidotDeviceUpdateCoordinator(DataUpdateCoordinator[DeviceStatusData]):
     async def _async_setup(self) -> None:
         """Set up the coordinator."""
         self.device_client.on_status_update = self._handle_status_update
+        self._schedule_reconnect_check()
 
     def _handle_status_update(self, status: DeviceStatusData):
-        """status callback"""
+        """Status callback from device."""
         self.async_set_updated_data(status)
+
+    def _schedule_reconnect_check(self) -> None:
+        """Periodically check connection and attempt reconnect if needed."""
+        async def _check():
+            try:
+                if not self.device_client.connect_and_login and not self.device_client.connecting:
+                    _LOGGER.info("Device %s offline, attempting reconnect", self.device_client.device_id)
+                    await self.device_client.async_login()
+            except Exception as err:
+                _LOGGER.debug("Reconnect attempt failed for %s: %s", self.device_client.device_id, err)
+
+        loop = asyncio.get_running_loop()
+        loop.create_task(_check())
+        self._reconnect_timer = loop.call_later(30, self._schedule_reconnect_check)
+
+    def cancel_reconnect(self) -> None:
+        """Cancel the reconnection watchdog."""
+        if hasattr(self, '_reconnect_timer') and self._reconnect_timer:
+            self._reconnect_timer.cancel()
+            self._reconnect_timer = None
+
     async def _async_update_data(self) -> DeviceStatusData:
         """Return current status."""
         return self.device_client.status
@@ -119,6 +142,7 @@ class AidotDeviceManagerCoordinator(DataUpdateCoordinator[None]):
 
         for dev_id in delete_lists:
             if dev_id in self.device_coordinators:
+                self.device_coordinators[dev_id].cancel_reconnect()
                 del self.device_coordinators[dev_id]
         if delete_lists:
             self._purge_deleted_lists()
@@ -134,9 +158,11 @@ class AidotDeviceManagerCoordinator(DataUpdateCoordinator[None]):
                 await device_coordinator.async_config_entry_first_refresh()
                 self.device_coordinators[dev_id] = device_coordinator
 
-    def cleanup(self) -> None:
+    async def cleanup(self) -> None:
         """Perform cleanup actions."""
-        self.client.cleanup()
+        for coordinator in self.device_coordinators.values():
+            coordinator.cancel_reconnect()
+        await self.client.async_close()
 
     def token_fresh_cb(self) -> None:
         """Update token."""

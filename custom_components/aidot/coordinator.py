@@ -4,8 +4,8 @@ import asyncio
 from datetime import timedelta
 import logging
 
-from aidot.client import AidotClient
-from aidot.const import (
+from .aidot_lib.client import AidotClient
+from .aidot_lib.const import (
     CONF_ACCESS_TOKEN,
     CONF_AES_KEY,
     CONF_DEVICE_LIST,
@@ -13,8 +13,8 @@ from aidot.const import (
     CONF_LOGIN_INFO,
     CONF_TYPE,
 )
-from aidot.device_client import DeviceClient, DeviceStatusData
-from aidot.exceptions import AidotAuthFailed, AidotNotLogin, AidotUserOrPassIncorrect
+from .aidot_lib.device_client import DeviceClient, DeviceStatusData
+from .aidot_lib.exceptions import AidotAuthFailed, AidotNotLogin, AidotUserOrPassIncorrect
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform

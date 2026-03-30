@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from aidot.client import AidotClient
-from aidot.const import CONF_LOGIN_INFO, DEFAULT_COUNTRY_CODE, SUPPORTED_COUNTRY_CODES
-from aidot.exceptions import AidotUserOrPassIncorrect
+from .aidot_lib.client import AidotClient
+from .aidot_lib.const import CONF_LOGIN_INFO, DEFAULT_COUNTRY_CODE, SUPPORTED_COUNTRY_CODES
+from .aidot_lib.exceptions import AidotUserOrPassIncorrect
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult

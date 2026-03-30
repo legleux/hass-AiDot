@@ -1,11 +1,11 @@
 {
   "domain": "aidot",
   "name": "AiDot Lights Local",
-  "codeowners": ["@s1eedz", "@HongBryan"],
+  "codeowners": ["@s1eedz", "@HongBryan", "@legleux"],
   "config_flow": true,
   "documentation": "https://www.home-assistant.io/integrations/aidot",
   "iot_class": "local_polling",
   "quality_scale": "bronze",
-  "requirements": ["python-aidot==0.3.46"],
+  "requirements": [],
   "version": "1.0.9"
 }

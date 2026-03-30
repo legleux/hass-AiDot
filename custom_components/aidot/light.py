@@ -1,5 +1,6 @@
 """Support for Aidot lights."""
 
+import logging
 from typing import Any
 
 from homeassistant.components.light import (
@@ -10,7 +11,8 @@ from homeassistant.components.light import (
     LightEntity,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import entity_registry as er  # 导入实体注册表
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import (
     CONNECTION_NETWORK_MAC,
     DeviceInfo,
@@ -21,6 +23,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import AidotConfigEntry, AidotDeviceUpdateCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -117,27 +121,41 @@ class AidotLight(CoordinatorEntity[AidotDeviceUpdateCoordinator], LightEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the light on."""
-        self.coordinator.data.on = True
-        self._attr_is_on = True
-        if ATTR_BRIGHTNESS in kwargs:
-            await self.coordinator.device_client.async_set_brightness(
-                kwargs.get(ATTR_BRIGHTNESS, 255)
-            )
-        if ATTR_COLOR_TEMP_KELVIN in kwargs:
-            self._attr_color_mode = ColorMode.COLOR_TEMP
-            await self.coordinator.device_client.async_set_cct(
-                kwargs.get(ATTR_COLOR_TEMP_KELVIN)
-            )
-        if ATTR_RGBW_COLOR in kwargs:
-            self._attr_color_mode = ColorMode.RGBW
-            await self.coordinator.device_client.async_set_rgbw(
-                kwargs.get(ATTR_RGBW_COLOR)
-            )
-        if not kwargs:
+        try:
+            # Always send turn-on first to ensure light is powered
             await self.coordinator.device_client.async_turn_on()
+            if ATTR_BRIGHTNESS in kwargs:
+                await self.coordinator.device_client.async_set_brightness(
+                    kwargs.get(ATTR_BRIGHTNESS, 255)
+                )
+            if ATTR_COLOR_TEMP_KELVIN in kwargs:
+                self._attr_color_mode = ColorMode.COLOR_TEMP
+                await self.coordinator.device_client.async_set_cct(
+                    kwargs.get(ATTR_COLOR_TEMP_KELVIN)
+                )
+            if ATTR_RGBW_COLOR in kwargs:
+                self._attr_color_mode = ColorMode.RGBW
+                await self.coordinator.device_client.async_set_rgbw(
+                    kwargs.get(ATTR_RGBW_COLOR)
+                )
+            self.coordinator.data.on = True
+            self._attr_is_on = True
+            self.async_write_ha_state()
+        except (ConnectionError, OSError) as err:
+            _LOGGER.error("Failed to turn on %s: %s", self.entity_id, err)
+            self._update_status()
+            self.async_write_ha_state()
+            raise HomeAssistantError(f"Failed to turn on: {err}") from err
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the light off."""
-        self.coordinator.data.on = False
-        self._attr_is_on = False
-        await self.coordinator.device_client.async_turn_off()
+        try:
+            await self.coordinator.device_client.async_turn_off()
+            self.coordinator.data.on = False
+            self._attr_is_on = False
+            self.async_write_ha_state()
+        except (ConnectionError, OSError) as err:
+            _LOGGER.error("Failed to turn off %s: %s", self.entity_id, err)
+            self._update_status()
+            self.async_write_ha_state()
+            raise HomeAssistantError(f"Failed to turn off: {err}") from err

@@ -133,6 +133,7 @@ class DeviceClient(object):
         self.password = device.get(CONF_PASSWORD)
         self.device_id = device.get(CONF_ID)
         self._simpleVersion = device.get("simpleVersion")
+        self.ascNumber = 1
 
     async def connect(self, ip_address) -> None:
         _LOGGER.info(f"connect device : {ip_address}")
